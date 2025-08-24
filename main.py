@@ -3,10 +3,10 @@ import pygame, numpy, math, random
 from pygame.math import Vector2
 
 DRAG = 30
+OBJ_DRAG = 3
 GRAVITY = 300
 REPEL = 300
 MOUSE_FORCE = 500
-OBJ_DENSITY = 10
 
 SIZE = 500
 D_SCALE = 10
@@ -79,12 +79,16 @@ class Point:
             if self.vel.y > 0: self.vel.y = 0
 
 class Circle:
-    def __init__(self, pos: Vector2, radius: float) -> None:
+    def __init__(self, pos: Vector2, radius: float, density: int) -> None:
         global i
         self.pos = pos
         self.vel = Vector2(0,0)
         self.radius = radius
+        self.diameter = radius * 2
+        self.weight = self.radius ** 2 * math.pi
         self.tile_radius = self.radius / D_SCALE
+        self.density = density
+        self.color = min(70+5*density+random.randint(-5,5),255), min(70+5*density+random.randint(-5,5),255), min(70+5*density+random.randint(-5,5),255)
         self.id = i
         i += 1
     
@@ -95,14 +99,15 @@ class Circle:
         else:
             add_vel = Vector2(0,GRAVITY)
 
+            drag = OBJ_DRAG * self.diameter
             if self.vel.x > 0:
-                add_vel.x -= max(self.vel.x, DRAG)
+                add_vel.x -= max(self.vel.x, drag)
             elif self.vel.x < 0:
-                add_vel.x += max(-self.vel.x, DRAG)
+                add_vel.x += max(-self.vel.x, drag)
             if self.vel.y > 0:
-                add_vel.y -= max(self.vel.y, DRAG)
+                add_vel.y -= max(self.vel.y, drag)
             elif self.vel.y < 0:
-                add_vel.y += max(-self.vel.y, DRAG)
+                add_vel.y += max(-self.vel.y, drag)
             
             min_score = 999
             zero = 0
@@ -113,7 +118,7 @@ class Circle:
                     rel_x = rel_x * self.tile_radius
                     rel_y = rel_y * self.tile_radius
                     if rel_x == 0 and rel_y == 0:
-                        zero = distribution[x, y] - 1
+                        zero = distribution[x, y] - self.density
                     elif x + rel_x >= 0 and x + rel_x < D_SIZE and y + rel_y >= 0 and y + rel_y < D_SIZE:
                         score = distribution[math.floor(x + rel_x), math.floor(y + rel_y)]
                         if score < min_score:
@@ -122,7 +127,7 @@ class Circle:
                         elif score == min_score:
                             direction.append(Vector2(rel_x, rel_y))
             if zero > min_score:
-                add_vel += random.choice(direction) * REPEL * math.log(zero - min_score, 5)
+                add_vel += random.choice(direction) * REPEL / (self.weight * 0.002) * math.log(zero - min_score, 5)
 
             add_vel *= delta * 0.5
             self.vel += add_vel
@@ -143,10 +148,14 @@ class Circle:
             if self.vel.y > 0: self.vel.y = 0
 
     def to_distribution(self, distribution: numpy.ndarray):
-        for x in range(int(self.radius*2)):
-            for y in range(int(self.radius*2)):
+        visited = []
+        for x in range(int(self.diameter)):
+            for y in range(int(self.diameter)):
                 if Vector2(x-self.radius,y-self.radius).magnitude() < self.radius:
-                    distribution[scale(self.pos.x - self.radius + x), scale(self.pos.y - self.radius + y)] += OBJ_DENSITY
+                    pos = scale(self.pos.x - self.radius + x), scale(self.pos.y - self.radius + y)
+                    if pos not in visited:
+                        distribution[pos[0], pos[1]] += self.density
+                        visited.append(pos)
     
     def collides(self, pos: Vector2) -> bool:
         return pos.distance_to(self.pos) <= self.radius
@@ -181,9 +190,9 @@ while on:
                 mouse_force_mul *= 0.4
             elif event.key == pygame.K_LCTRL:
                 mouse_force_mul *= 1.5
-            elif event.key == pygame.K_1: objects.append(Circle(Vector2(pygame.mouse.get_pos()), 10))
-            elif event.key == pygame.K_2: objects.append(Circle(Vector2(pygame.mouse.get_pos()), 20))
-            elif event.key == pygame.K_3: objects.append(Circle(Vector2(pygame.mouse.get_pos()), 30))
+            elif event.key == pygame.K_1: objects.append(Circle(Vector2(pygame.mouse.get_pos()), 10, 2 if event.mod & pygame.KMOD_SHIFT else 15))
+            elif event.key == pygame.K_2: objects.append(Circle(Vector2(pygame.mouse.get_pos()), 20, 2 if event.mod & pygame.KMOD_SHIFT else 15))
+            elif event.key == pygame.K_3: objects.append(Circle(Vector2(pygame.mouse.get_pos()), 30, 2 if event.mod & pygame.KMOD_SHIFT else 15))
         elif event.type == pygame.KEYUP:
             if event.key == pygame.K_LSHIFT:
                 mouse_force_mul /= 0.4
@@ -214,14 +223,13 @@ while on:
     distribution = numpy.ndarray((D_SIZE,D_SIZE), int)
     distribution.fill(0)
     for p in points: distribution[scale(p.pos.x), scale(p.pos.y)] += 1
+    for o in objects: o.to_distribution(distribution)
 
     mouse_pos = Vector2(pygame.mouse.get_pos())
     if spawn_water:
-        for _ in range(3): points.append(Point(Vector2(pygame.mouse.get_pos())))
+        for _ in range(int(3 * mouse_force_mul)): points.append(Point(Vector2(pygame.mouse.get_pos())))
 
     for o in objects: o.update(distribution, delta, mouse_pos if drag_object == o.id else None)
-    for o in objects: o.to_distribution(distribution)
-
     for p in points: p.update(distribution, delta, mouse_pos if drag_water else None, push, mouse_force_mul)
         # pygame.draw.circle(screen, (30,30,150), p.pos, 2)
 
@@ -230,6 +238,8 @@ while on:
             v = distribution[x, y]
             if v > 0:
                 pygame.draw.rect(screen, (min(13+2*v,50),min(13+2*v,50),min(50+5*v,255)), (x * REV_SCALE, y * REV_SCALE, REV_SCALE, REV_SCALE))
+
+    for o in objects: pygame.draw.circle(screen, o.color, o.pos, o.radius)
 
     if show_fps:
         fps = math.floor(1 / (sum(fps_buffer) / len(fps_buffer)))

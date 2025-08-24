@@ -12,7 +12,7 @@ Left mouse: drag water or objects\
 Right mouse: repel water\
 Middle mouse: create water\
 Ctrl: Higher mouse force\
-Shift: Lower mouse force\
+Shift: Lower mouse force, lower circle density when spawning\
 F: Enable/disable fps counter\
 1: Spawn a small circle\
 2: Spawn a medium circle\
