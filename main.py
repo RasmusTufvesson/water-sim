@@ -3,7 +3,7 @@ import pygame, numpy, math, random
 from pygame.math import Vector2
 
 DRAG = 30
-GRAVITY = 150
+GRAVITY = 300
 REPEL = 300
 MOUSE_FORCE = 500
 
@@ -24,7 +24,7 @@ class Point:
         self.id = i
         i += 1
     
-    def update(self, distribution: numpy.ndarray, delta: float, mouse: Vector2 | None, push: bool):
+    def update(self, distribution: numpy.ndarray, delta: float, mouse: Vector2 | None, push: bool, mul: float):
         add_vel = Vector2(0,GRAVITY)
 
         if self.vel.x > 0:
@@ -56,9 +56,9 @@ class Point:
 
         if mouse is not None:
             if push:
-                add_vel -= (mouse - self.pos).normalize() * MOUSE_FORCE * 0.6 ** (mouse.distance_to(self.pos) * 0.03)
+                add_vel -= (mouse - self.pos).normalize() * MOUSE_FORCE * mul * 0.6 ** (mouse.distance_to(self.pos) * 0.03)
             else:
-                add_vel += (mouse - self.pos).normalize() * MOUSE_FORCE * math.log10(mouse.distance_to(self.pos))
+                add_vel += (mouse - self.pos).normalize() * MOUSE_FORCE * mul * math.log10(mouse.distance_to(self.pos))
 
         add_vel *= delta * 0.5
         self.vel += add_vel
@@ -81,7 +81,13 @@ pygame.init()
 screen = pygame.display.set_mode((SIZE,SIZE), pygame.NOFRAME)
 clock = pygame.Clock()
 
-points = [Point(Vector2(x,y)) for x in range(10, 496, 2) for y in range(250, 275, 5)]
+points = [Point(Vector2(x,y)) for x in range(10, 496, 2) for y in range(250, 285, 5)]
+
+font = pygame.font.SysFont("Arial", 14)
+fps_buffer = []
+show_fps = False
+
+mouse_force_mul = 1
 
 delta = 0
 on = True
@@ -89,6 +95,18 @@ while on:
     for event in pygame.event.get():
         if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
             on = False
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_f:
+                show_fps = not show_fps
+            elif event.key == pygame.K_LSHIFT:
+                mouse_force_mul *= 0.4
+            elif event.key == pygame.K_LCTRL:
+                mouse_force_mul *= 1.5
+        elif event.type == pygame.KEYUP:
+            if event.key == pygame.K_LSHIFT:
+                mouse_force_mul /= 0.4
+            elif event.key == pygame.K_LCTRL:
+                mouse_force_mul /= 1.5
     
     screen.fill((22,22,22))
 
@@ -104,15 +122,24 @@ while on:
     elif mouse_pressed[2]:
         mouse = Vector2(pygame.mouse.get_pos())
         push = True
+    elif mouse_pressed[1]:
+        points.append(Point(Vector2(pygame.mouse.get_pos())))
 
-    for p in points: p.update(distribution, delta, mouse, push)
+    for p in points: p.update(distribution, delta, mouse, push, mouse_force_mul)
         # pygame.draw.circle(screen, (30,30,150), p.pos, 2)
 
     for x in range(D_SIZE):
         for y in range(D_SIZE):
             v = distribution[x, y]
             if v > 0:
-                pygame.draw.rect(screen, (min(15+5*v,50),min(15+5*v,50),min(60+15*v,255)), (x * REV_SCALE, y * REV_SCALE, REV_SCALE, REV_SCALE))
+                pygame.draw.rect(screen, (min(13+2*v,50),min(13+2*v,50),min(50+5*v,255)), (x * REV_SCALE, y * REV_SCALE, REV_SCALE, REV_SCALE))
+
+    if show_fps:
+        fps = math.floor(1 / (sum(fps_buffer) / len(fps_buffer)))
+        text = font.render(str(fps), True, (200,200,200))
+        screen.blit(text, text.get_rect(bottomleft=(0,SIZE)))
 
     pygame.display.flip()
     delta = clock.tick(60) / 1000
+    if len(fps_buffer) > 20: fps_buffer.pop()
+    fps_buffer.append(delta)
