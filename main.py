@@ -6,6 +6,7 @@ DRAG = 30
 GRAVITY = 300
 REPEL = 300
 MOUSE_FORCE = 500
+OBJ_DENSITY = 10
 
 SIZE = 500
 D_SCALE = 10
@@ -43,7 +44,7 @@ class Point:
         for rel_x in (0, 1, -1):
             for rel_y in (1, 0, -1):
                 if rel_x == 0 and rel_y == 0:
-                    zero = distribution[x, y]
+                    zero = distribution[x, y] - 1
                 elif x + rel_x >= 0 and x + rel_x < D_SIZE and y + rel_y >= 0 and y + rel_y < D_SIZE:
                     score = distribution[x + rel_x, y + rel_y]
                     if score < min_score:
@@ -88,45 +89,45 @@ class Circle:
         i += 1
     
     def update(self, distribution: numpy.ndarray, delta: float, mouse: Vector2 | None):
-        add_vel = Vector2(0,GRAVITY)
-
-        if self.vel.x > 0:
-            add_vel.x -= max(self.vel.x, DRAG)
-        elif self.vel.x < 0:
-            add_vel.x += max(-self.vel.x, DRAG)
-        if self.vel.y > 0:
-            add_vel.y -= max(self.vel.y, DRAG)
-        elif self.vel.y < 0:
-            add_vel.y += max(-self.vel.y, DRAG)
-        
-        min_score = 999
-        zero = 0
-        direction = [Vector2(0,0)]
-        x, y = scale(self.pos.x), scale(self.pos.y)
-        for rel_x in (0, 1, -1):
-            for rel_y in (1, 0, -1):
-                rel_x = rel_x * self.tile_radius
-                rel_y = rel_y * self.tile_radius
-                if rel_x == 0 and rel_y == 0:
-                    zero = distribution[x, y]
-                elif x + rel_x >= 0 and x + rel_x < D_SIZE and y + rel_y >= 0 and y + rel_y < D_SIZE:
-                    score = distribution[math.floor(x + rel_x), math.floor(y + rel_y)]
-                    if score < min_score:
-                        direction = [Vector2(rel_x, rel_y)]
-                        min_score = score
-                    elif score == min_score:
-                        direction.append(Vector2(rel_x, rel_y))
-        if zero > min_score:
-            add_vel += random.choice(direction) * REPEL * math.log(zero - min_score, 5)
-
-        add_vel *= delta * 0.5
-        self.vel += add_vel
-        self.pos += self.vel * delta
-        self.vel += add_vel
-
         if mouse is not None:
+            self.vel = (mouse - self.pos) / delta
             self.pos = mouse
-            self.vel = Vector2(0,0)
+        else:
+            add_vel = Vector2(0,GRAVITY)
+
+            if self.vel.x > 0:
+                add_vel.x -= max(self.vel.x, DRAG)
+            elif self.vel.x < 0:
+                add_vel.x += max(-self.vel.x, DRAG)
+            if self.vel.y > 0:
+                add_vel.y -= max(self.vel.y, DRAG)
+            elif self.vel.y < 0:
+                add_vel.y += max(-self.vel.y, DRAG)
+            
+            min_score = 999
+            zero = 0
+            direction = [Vector2(0,0)]
+            x, y = scale(self.pos.x), scale(self.pos.y)
+            for rel_x in (0, 1, -1):
+                for rel_y in (1, 0, -1):
+                    rel_x = rel_x * self.tile_radius
+                    rel_y = rel_y * self.tile_radius
+                    if rel_x == 0 and rel_y == 0:
+                        zero = distribution[x, y] - 1
+                    elif x + rel_x >= 0 and x + rel_x < D_SIZE and y + rel_y >= 0 and y + rel_y < D_SIZE:
+                        score = distribution[math.floor(x + rel_x), math.floor(y + rel_y)]
+                        if score < min_score:
+                            direction = [Vector2(rel_x, rel_y)]
+                            min_score = score
+                        elif score == min_score:
+                            direction.append(Vector2(rel_x, rel_y))
+            if zero > min_score:
+                add_vel += random.choice(direction) * REPEL * math.log(zero - min_score, 5)
+
+            add_vel *= delta * 0.5
+            self.vel += add_vel
+            self.pos += self.vel * delta
+            self.vel += add_vel
 
         if self.pos.x < self.radius:
             self.pos.x = self.radius
@@ -145,7 +146,7 @@ class Circle:
         for x in range(int(self.radius*2)):
             for y in range(int(self.radius*2)):
                 if Vector2(x-self.radius,y-self.radius).magnitude() < self.radius:
-                    distribution[scale(self.pos.x - self.radius + x), scale(self.pos.y - self.radius + y)] += 10
+                    distribution[scale(self.pos.x - self.radius + x), scale(self.pos.y - self.radius + y)] += OBJ_DENSITY
     
     def collides(self, pos: Vector2) -> bool:
         return pos.distance_to(self.pos) <= self.radius
