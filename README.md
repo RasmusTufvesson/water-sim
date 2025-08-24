@@ -1,9 +1,9 @@
 # Water sim
-Just a little simulation that i made because i can.
+Just a little simulation that I made because I can.
 
 It works by creating a grid of cells that count how many water particles are in them. This is then used by each water particle to try and get to a cell with a lower density.
 
-You can also create circles of different sizes that are basically just particles with a size. They are a bit janky and water can get stuck inside them because particls just check adjacent cells.
+You can also create circles of different sizes that are basically just particles with a size. They are a bit janky and water can get stuck inside them because particles just check adjacent cells.
 
 ## Controls
 
